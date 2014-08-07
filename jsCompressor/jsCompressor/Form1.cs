@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Ajax.Utilities;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -13,6 +14,12 @@ namespace jsCompressor
 {
     public partial class Form1 : Form
     {
+        private string SelectedFolderPath { get; set; }
+
+        public string PublicFolderPath { get; set; }
+
+        private string DesktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + @"\";
+
         public Form1()
         {
             InitializeComponent();
@@ -27,42 +34,253 @@ namespace jsCompressor
             var result = folderDialog.ShowDialog();
             if (result == System.Windows.Forms.DialogResult.OK)
             {
-                var folderPath = folderDialog.SelectedPath;
-                FolderPathLab.Text = folderPath;
-
-
-                // files in directory
-                int x = 10;
-                var files = Directory.EnumerateFiles(folderPath)
-                                 .OrderByDescending(filename => filename).ToList();
-
-                var i = 0;
-
-                var test = Directory.GetFileSystemEntries(folderPath, "*.png", SearchOption.AllDirectories);
-
-                var j = 0;
-
-                //string destination_dir = System.IO.Directory.GetCurrentDirectory() + @"./4x6";
-
-                //string[] extensions = { ".jpg", ".gif", ".png", ".tiff" };
-
-                //string[] dizin = Directory.GetFiles(fbd.SelectedPath, "*.*")
-                //    .Where(f => extensions.Contains(new FileInfo(f).Extension.ToLower())).ToArray();
-
-                //t4x6Folder.Text = dizin.Count().ToString();
-
-                //foreach (string file_name in dizin)
-                //{
-                //    File.Copy(file_name, destination_dir + file_name.Substring(fbd.SelectedPath.Length), true);
-                //}
-
-                //int fileCount = Directory.GetFiles(destination_dir, "*.*", SearchOption.TopDirectoryOnly).Length;
-
-                //t4x6Folder.Text = filepreCount.ToString();// fileCount.ToString();
-
+                SelectedFolderPath = folderDialog.SelectedPath;
+                FolderPathLab.Text = SelectedFolderPath;
             }
 
             folderDialog.Dispose();
+        }
+
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void StartBtn_Click(object sender, EventArgs e)
+        {
+            if (SelectedFolderPath.IsNullOrWhiteSpace())
+            {
+                PrintLine("", "请选择文件夹");
+                return;
+            }
+
+            PublicFolderPath = CreatePublicCopy();
+
+            ClearMinJsAndMinCss(PublicFolderPath);
+
+            CompressJsFiles(PublicFolderPath);
+
+            CompressCssFiles(PublicFolderPath);
+
+            ClearUncompressedJsFiles(PublicFolderPath);
+
+            ClearUncompressedCssFiles(PublicFolderPath);
+
+            PrintLine("", "Done!");
+        }
+
+        private string CreatePublicCopy()
+        {
+            PrintLine("", "创建发布文件夹...");
+
+            var folderName = "public_" + DateTime.Now.ToString("yyyy-MM-dd_HHmmss");
+
+            while (Directory.Exists(DesktopPath + folderName))
+            {
+                folderName += "-" + (new Random()).Next(1, 99);
+            }
+
+            Directory.CreateDirectory(DesktopPath + folderName);
+
+            PrintLine("", string.Format("已在桌面创建发布文件夹（{0}）", folderName));
+
+            PrintLine("", "文件拷贝...");
+
+            CopyFolder(SelectedFolderPath, DesktopPath + folderName);
+
+            PrintLine("", "文件拷贝完成");
+
+            return DesktopPath + folderName;
+        }
+
+        private void ClearMinJsAndMinCss(string folderPath)
+        {
+            PrintLine("", "扫描文件夹...");
+
+            var minJsArr = Directory.GetFileSystemEntries(folderPath, "*.min.js", SearchOption.AllDirectories);
+            var minJsMapArr = Directory.GetFileSystemEntries(folderPath, "*.min.js.map", SearchOption.AllDirectories);
+            var minCssArr = Directory.GetFileSystemEntries(folderPath, "*.min.css", SearchOption.AllDirectories);
+
+            if (minJsArr.Length > 0)
+            {
+                PrintLine("", "发现*.min.js文件 " + minJsArr.Length + " 个");
+                PrintLine("", "开始删除*.min.js文件");
+
+                foreach (var filePath in minJsArr)
+                {
+                    DeleteFile(filePath);
+                }
+
+                PrintLine("", "*.min.js 文件删除完成");
+            }
+
+            if (minJsMapArr.Length > 0)
+            {
+                PrintLine("", "发现*.min.js.map文件 " + minJsMapArr.Length + " 个");
+                PrintLine("", "开始删除*.min.js.map文件");
+
+                foreach (var filePath in minJsMapArr)
+                {
+                    DeleteFile(filePath);
+                }
+                PrintLine("", "*.min.js.map 文件删除完成");
+            }
+
+            if (minCssArr.Length > 0)
+            {
+                PrintLine("", "发现*.min.css文件 " + minCssArr.Length + " 个");
+                PrintLine("", "开始删除*.min.css文件");
+
+                foreach (var filePath in minCssArr)
+                {
+                    DeleteFile(filePath);
+                }
+
+                PrintLine("", "*.min.css 文件删除完成");
+            }
+        }
+
+        private void ClearUncompressedJsFiles(string folderPath)
+        {
+            PrintLine("", "开始删除未压缩js文件...");
+
+            var jsArr = Directory.GetFileSystemEntries(folderPath, "*.js", SearchOption.AllDirectories);
+            var minJsArr = Directory.GetFileSystemEntries(folderPath, "*.min.js", SearchOption.AllDirectories);
+
+            var uncompressedJsArr = jsArr.Except(minJsArr);
+
+            foreach (var filePath in uncompressedJsArr)
+            {
+                DeleteFile(filePath);
+            }
+
+            PrintLine("", "删除未压缩js文件完成");
+        }
+
+        private void ClearUncompressedCssFiles(string folderPath)
+        {
+            PrintLine("", "开始删除未压缩css文件...");
+
+            var cssArr = Directory.GetFileSystemEntries(folderPath, "*.css", SearchOption.AllDirectories);
+            var minCssArr = Directory.GetFileSystemEntries(folderPath, "*.min.css", SearchOption.AllDirectories);
+
+            var uncompressedCssArr = cssArr.Except(minCssArr);
+
+            foreach (var filePath in uncompressedCssArr)
+            {
+                DeleteFile(filePath);
+            }
+
+            PrintLine("", "删除未压缩css文件完成");
+        }
+
+        private void CompressJsFiles(string folderPath)
+        {
+            PrintLine("", "开始压缩js...");
+
+            var jsArr = Directory.GetFileSystemEntries(folderPath, "*.js", SearchOption.AllDirectories);
+
+            var minifier = new Minifier();
+            foreach (var filePath in jsArr)
+            {
+                var newFilePath = Path.GetDirectoryName(filePath) + "\\" + Path.GetFileNameWithoutExtension(filePath) + ".min.js";
+
+                // read file to string
+                var contents = File.ReadAllText(filePath);
+                var miniContents = minifier.MinifyJavaScript(contents);
+
+                CreateNewFile(newFilePath, miniContents);
+            }
+
+            PrintLine("", "js压缩完成");
+        }
+
+        private void CompressCssFiles(string folderPath)
+        {
+            PrintLine("", "开始压缩css...");
+
+            var cssArr = Directory.GetFileSystemEntries(folderPath, "*.css", SearchOption.AllDirectories);
+
+            var minifier = new Minifier();
+            foreach (var filePath in cssArr)
+            {
+                var newFilePath = Path.GetDirectoryName(filePath) + "\\" + Path.GetFileNameWithoutExtension(filePath) + ".min.css";
+
+                // read file to string
+                var contents = File.ReadAllText(filePath);
+                var miniContents = minifier.MinifyStyleSheet(contents);
+
+                CreateNewFile(newFilePath, miniContents);
+            }
+
+            PrintLine("", "css压缩完成");
+        }
+
+        private void CreateNewFile(string filePath, string content)
+        {
+            // Create the file. 
+            using (FileStream fs = File.Create(filePath))
+            {
+                Byte[] info = new UTF8Encoding(true).GetBytes(content);
+                // Add some information to the file.
+                fs.Write(info, 0, info.Length);
+            }
+        }
+
+        private void DeleteFile(string filePath)
+        {
+            // delete file
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
+
+        private void PrintLine(string title, string content)
+        {
+            OutputBox.Items.Add(title + "> " + content);
+        }
+
+
+        // copy directory to another directory
+        public static void CopyDirectory(string Src, string Dst)
+        {
+            String[] Files;
+
+            if (Dst[Dst.Length - 1] != Path.DirectorySeparatorChar)
+                Dst += Path.DirectorySeparatorChar;
+            if (!Directory.Exists(Dst)) Directory.CreateDirectory(Dst);
+            Files = Directory.GetFileSystemEntries(Src);
+            foreach (string Element in Files)
+            {
+                // Sub directories
+                if (Directory.Exists(Element))
+                    CopyDirectory(Element, Dst + Path.GetFileName(Element));
+                // Files in directory
+                else
+                    File.Copy(Element, Dst + Path.GetFileName(Element), true);
+            }
+        }
+
+        static public void CopyFolder(string sourceFolder, string destFolder)
+        {
+            if (!Directory.Exists(destFolder))
+                Directory.CreateDirectory(destFolder);
+            string[] files = Directory.GetFiles(sourceFolder);
+            foreach (string file in files)
+            {
+                string name = Path.GetFileName(file);
+                string dest = Path.Combine(destFolder, name);
+                File.Copy(file, dest);
+            }
+            string[] folders = Directory.GetDirectories(sourceFolder);
+            foreach (string folder in folders)
+            {
+                string name = Path.GetFileName(folder);
+                string dest = Path.Combine(destFolder, name);
+                CopyFolder(folder, dest);
+            }
         }
     }
 }
