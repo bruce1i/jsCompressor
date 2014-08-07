@@ -61,11 +61,45 @@ namespace jsCompressor
 
             DisableBtn();
 
-            var thread = new Thread(Compressor);
-            thread.Start();
+            if (BiaozhunRio.Checked)
+            {
+                PrintLine("-标准模式-");
+                var thread = new Thread(CompressorBiaozhunModel);
+                thread.Start();
+            }
+
+            if (MinRio.Checked)
+            {
+                PrintLine("-Min模式-");
+                var thread = new Thread(CompressorMinModel);
+                thread.Start();
+            }
         }
 
-        private void Compressor()
+        private void CompressorBiaozhunModel()
+        {
+            SetProgress(0);
+
+            PublicFolderPath = CreatePublicCopy();
+
+            SetProgress(25);
+
+            ClearMinJsAndMinCss(PublicFolderPath);
+
+            SetProgress(50);
+
+            CompressJsFiles(PublicFolderPath);
+
+            SetProgress(75);
+
+            CompressCssFiles(PublicFolderPath);
+
+            EnableBtn();
+
+            PrintLine("Done!");
+        }
+
+        private void CompressorMinModel()
         {
             SetProgress(0);
 
@@ -77,11 +111,11 @@ namespace jsCompressor
 
             SetProgress(35);
 
-            CompressJsFiles(PublicFolderPath);
+            CompressJsFilesWithMin(PublicFolderPath);
 
             SetProgress(55);
 
-            CompressCssFiles(PublicFolderPath);
+            CompressCssFilesWithMin(PublicFolderPath);
 
             SetProgress(70);
 
@@ -210,6 +244,25 @@ namespace jsCompressor
             var minifier = new Minifier();
             foreach (var filePath in jsArr)
             {
+                // read file to string
+                var contents = File.ReadAllText(filePath);
+                var miniContents = minifier.MinifyJavaScript(contents);
+
+                File.WriteAllText(filePath, miniContents);
+            }
+
+            PrintLine("js压缩完成");
+        }
+
+        private void CompressJsFilesWithMin(string folderPath)
+        {
+            PrintLine("开始压缩js...");
+
+            var jsArr = Directory.GetFileSystemEntries(folderPath, "*.js", SearchOption.AllDirectories);
+
+            var minifier = new Minifier();
+            foreach (var filePath in jsArr)
+            {
                 var newFilePath = Path.GetDirectoryName(filePath) + "\\" + Path.GetFileNameWithoutExtension(filePath) + ".min.js";
 
                 // read file to string
@@ -223,6 +276,24 @@ namespace jsCompressor
         }
 
         private void CompressCssFiles(string folderPath)
+        {
+            PrintLine("开始压缩css...");
+
+            var cssArr = Directory.GetFileSystemEntries(folderPath, "*.css", SearchOption.AllDirectories);
+
+            var minifier = new Minifier();
+            foreach (var filePath in cssArr)
+            {
+                // read file to string
+                var contents = File.ReadAllText(filePath);
+                var miniContents = minifier.MinifyStyleSheet(contents);
+
+                File.WriteAllText(filePath, miniContents);
+            }
+
+            PrintLine("css压缩完成");
+        }
+        private void CompressCssFilesWithMin(string folderPath)
         {
             PrintLine("开始压缩css...");
 
@@ -245,13 +316,16 @@ namespace jsCompressor
 
         private void CreateNewFile(string filePath, string content)
         {
+            File.WriteAllText(filePath, content);
+
+            // 老的创建文件的方法
             // Create the file. 
-            using (FileStream fs = File.Create(filePath))
-            {
-                Byte[] info = new UTF8Encoding(true).GetBytes(content);
-                // Add some information to the file.
-                fs.Write(info, 0, info.Length);
-            }
+            //using (FileStream fs = File.Create(filePath))
+            //{
+            //    Byte[] info = new UTF8Encoding(true).GetBytes(content);
+            //    // Add some information to the file.
+            //    fs.Write(info, 0, info.Length);
+            //}
         }
 
         private void DeleteFile(string filePath)
